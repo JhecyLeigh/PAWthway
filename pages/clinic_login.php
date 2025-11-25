@@ -2,56 +2,163 @@
 session_start();
 include('../config/db.php');
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $clinic_name = $_POST['clinic_name'];
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
+  $email = trim($_POST['email'] ?? '');
+  $password = trim($_POST['password'] ?? '');
+  $role = ($_POST['role'] ?? 'user') === 'clinic' ? 'clinic' : 'user';
 
-    $stmt = $conn->prepare("SELECT * FROM clinics WHERE name = ?");
-    $stmt->bind_param("s", $clinic_name);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $clinic = $result->fetch_assoc();
-    $stmt->close();
+  if ($email === '' || $password === '') {
+    $error = "Please enter both email and password.";
+  } else {
+    if ($role === 'user') {
+      $stmt = $conn->prepare("SELECT id, username, email, password FROM users WHERE email = ? LIMIT 1");
+      $stmt->bind_param('s', $email);
+      $stmt->execute();
+      $res = $stmt->get_result();
+      $user = $res->fetch_assoc();
+      $stmt->close();
 
-    if ($clinic) {
-        $_SESSION['clinic_name'] = $clinic_name;
-        header("Location: clinic_appointments.php");
+      if ($user && $password === $user['password']) {
+        $_SESSION['user'] = ['id'=>$user['id'],'username'=>$user['username'],'email'=>$user['email']];
+        header("Location: dashboard.php");
         exit;
+      } else $error = "Invalid user email or password.";
+
     } else {
-        $error = "Clinic not found.";
+      $stmt = $conn->prepare("SELECT id, clinic_id, email, password, name FROM clinic_users WHERE email = ? LIMIT 1");
+      $stmt->bind_param('s', $email);
+      $stmt->execute();
+      $res = $stmt->get_result();
+      $clinic = $res->fetch_assoc();
+      $stmt->close();
+
+      if ($clinic && $password === $clinic['password']) {
+        $_SESSION['clinic_user_id'] = $clinic['id'];
+        $_SESSION['clinic_id'] = $clinic['clinic_id'];
+        $_SESSION['clinic_name'] = $clinic['name'];
+        header("Location: clinic_dashboard.php");
+        exit;
+      } else $error = "Invalid clinic email or password.";
     }
+  }
 }
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <link rel="icon" type="image/png" href="../assets/img/logo.png">
-<title>Clinic Login - PAWthway</title>
-<link rel="stylesheet" href="../assets/css/style.css">
-<style>
-body {
-  display: flex; align-items: center; justify-content: center;
-  height: 100vh; background: #e8f5e9; font-family: 'Poppins', sans-serif;
-}
-form {
-  background: white; padding: 30px; border-radius: 15px;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.1); width: 320px;
-}
-input, button {
-  width: 100%; padding: 10px; margin: 10px 0; border-radius: 8px;
-  border: 1px solid #ccc; font-size: 14px;
-}
-button {
-  background: #4CAF50; color: white; border: none;
-  cursor: pointer; font-weight: 500;
-}
-</style>
+  <meta charset="UTF-8">
+  <title>Login - PAWthway</title>
+
+  <!-- Try both filenames (one will work). Keep these links as-is if they already worked before -->
+  <link rel="stylesheet" href="../assets/css/style.css">
+  <link rel="stylesheet" href="../assets/css/styles.css">
+
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+
+  <!-- IMPORTANT INLINE OVERRIDES: these clamp logo & force centered card even if main CSS fails -->
+  <style>
+    /* Reset any stray rules that make the logo huge */
+    header nav .logo img,
+    .logo img {
+      max-width: 240px !important;
+      width: auto !important;
+      height: auto !important;
+      display: block !important;
+    }
+
+    /* Ensure nav doesn't push content off-screen */
+    header nav { box-sizing: border-box; padding: 12px 20px; }
+
+    /* Center the form and keep card a fixed width */
+    body {
+      margin: 0;
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(180deg, #e8f5e9 0%, #ffffff 100%);
+      color: #2e7d32;
+      min-height: 100vh;
+    }
+
+    .page-wrap { display:flex; align-items:center; justify-content:center; min-height: calc(100vh - 80px); padding: 40px 20px; box-sizing:border-box; }
+
+    .form-container {
+      background: #ffffff;
+      padding: 22px 30px;
+      border-radius: 18px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+      text-align: center;
+      width: 420px;
+      max-width: 96%;
+      animation: fadeIn 0.35s ease;
+      margin: 0 auto;
+    }
+
+    .form-container .logo { margin-bottom: 6px; }
+    .form-container h3 { margin-bottom: 8px; color: #388e3c; text-align:left; font-size:20px; }
+    .form-container input { width:100%; padding:12px 14px; margin:10px 0; border:1px solid #c8e6c9; border-radius:8px; box-sizing:border-box; }
+    .form-container button { width:100%; padding:12px; border-radius:8px; border:none; background:#4CAF50; color:#fff; font-weight:500; cursor:pointer; box-shadow:0 4px 10px rgba(76,175,80,0.2); }
+
+    .role-row { display:flex; gap:18px; justify-content:center; margin-bottom:6px; }
+    .role-row label { color:#388e3c; font-size:14px; display:flex; align-items:center; gap:6px; }
+    .muted {font-size:14px; color:#388e3c; margin-top:12px;}
+    .error { color:#d32f2f; background:#ffebee; padding:10px; border-radius:8px; margin-top:10px; font-size:14px; }
+
+    /* Prevent horizontal scroll caused by oversized elements */
+    html, body { overflow-x: hidden; }
+
+    @media screen and (max-width:480px) {
+      .form-container{ width:94% }
+      header nav .logo img { max-width:160px !important; }
+    }
+  </style>
 </head>
 <body>
-<form method="POST">
-  <h2>Clinic Login</h2>
-  <input type="text" name="clinic_name" placeholder="Clinic Name" required>
-  <?php if (!empty($error)) echo "<p style='color:red;'>$error</p>"; ?>
-  <button type="submit">Login</button>
-</form>
+
+    <nav>
+  <div class="logo">
+    <img src="../assets/img/logo.png" alt="PAWthway Logo">
+    <span>PAWthway</span>
+  </div>
+  <ul>
+    <li><a href="dashboard.php">Home</a></li>
+    <li><a href="clinics.php">Clinics</a></li>
+    <li><a href="appointment_list.php">My Appointments</a></li>
+    <li><a href="reviews.php">My Reviews</a></li>
+    <li><a href="notifications.php">Notifications</a></li>
+    <li><a href="profile.php">Profile</a></li>
+    <li><a href="logout.php">Logout</a></li>
+  </ul>
+</nav>
+  </header>
+
+  <div class="page-wrap">
+    <div class="form-container">
+      <div class="logo">
+        <img src="../assets/img/logo.png" alt="PAWthway Logo" style="max-width:220px;">
+      </div>
+
+      <h3>LOGIN</h3>
+
+      <form method="POST" novalidate>
+        <div class="role-row">
+          <label><input type="radio" name="role" value="clinic" <?= (isset($_POST['role']) && $_POST['role'] === 'clinic') ? 'checked' : '' ?>> Clinic</label>
+        </div>
+
+        <input type="email" name="email" placeholder="Email" required value="<?= htmlspecialchars($_POST['email'] ?? '') ?>">
+        <input type="password" name="password" placeholder="Password" required>
+
+        <button type="submit" name="login">Login</button>
+
+        <p class="muted">Don't have an account? <a href="register.php">Register</a></p>
+
+        <?php if (isset($error)): ?>
+          <div class="error"><?= htmlspecialchars($error) ?></div>
+        <?php endif; ?>
+      </form>
+    </div>
+  </div>
+
+  <footer style="text-align:center;padding:16px;background:#e8f5e9;color:#388e3c;">
+    &copy; <?= date('Y') ?> PAWthway. All Rights Reserved.
+  </footer>
 </body>
 </html>

@@ -138,20 +138,20 @@ $user = $_SESSION['user'];
 </head>
 <body>
   <nav>
-    <div class="logo">
-      <img src="../assets/img/logo.png" alt="PAWthway Logo">
-      <span>PAWthway</span>
-    </div>
-    <ul>
-     <li><a href="dashboard.php">Home</a></li>
+  <div class="logo">
+    <img src="../assets/img/logo.png" alt="PAWthway Logo">
+    <span>PAWthway</span>
+  </div>
+  <ul>
+    <li><a href="dashboard.php">Home</a></li>
     <li><a href="clinics.php">Clinics</a></li>
     <li><a href="appointment_list.php">My Appointments</a></li>
+    <li><a href="reviews.php">My Reviews</a></li>
     <li><a href="notifications.php">Notifications</a></li>
     <li><a href="profile.php">Profile</a></li>
     <li><a href="logout.php">Logout</a></li>
-    <li><a href="reviews.php">My Reviews</a></li>
-    </ul>
-  </nav>
+  </ul>
+</nav>
 
   <div class="dashboard-container">
     <div class="dashboard-card">

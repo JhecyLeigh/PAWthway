@@ -463,6 +463,8 @@ footer {
     <li><a href="dashboard.php">Home</a></li>
     <li><a href="clinics.php">Clinics</a></li>
     <li><a href="appointment_list.php">My Appointments</a></li>
+    <li><a href="reviews.php">My Reviews</a></li>
+    <li><a href="notifications.php">Notifications</a></li>
     <li><a href="profile.php">Profile</a></li>
     <li><a href="logout.php">Logout</a></li>
   </ul>
