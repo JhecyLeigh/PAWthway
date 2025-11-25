@@ -119,7 +119,6 @@ $conn->close();
 
 <div class="container">
     <h2>My Reviews</h2>
-    
     <?php if (isset($message)): ?>
         <div class="success"><?php echo $message; ?></div>
     <?php endif; ?>
