@@ -111,6 +111,7 @@ $conn->close();
     <li><a href="clinics.php">Clinics</a></li>
     <li><a href="appointment_list.php">My Appointments</a></li>
     <li><a href="reviews.php">My Reviews</a></li>
+    <li><a href="notifications.php">Notifications</a></li>
     <li><a href="profile.php">Profile</a></li>
     <li><a href="logout.php">Logout</a></li>
   </ul>
@@ -118,7 +119,6 @@ $conn->close();
 
 <div class="container">
     <h2>My Reviews</h2>
-    
     <?php if (isset($message)): ?>
         <div class="success"><?php echo $message; ?></div>
     <?php endif; ?>
