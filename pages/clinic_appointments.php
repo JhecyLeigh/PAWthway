@@ -84,50 +84,6 @@ body {
   flex-direction: column;
 }
 
-nav {
-  background: #4CAF50;
-  color: white;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 15px 40px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-}
-
-nav .logo {
-  display: flex;
-  align-items: center;
-}
-
-nav .logo img {
-  width: 50px;
-  margin-right: 10px;
-}
-
-nav .logo span {
-  font-weight: 600;
-  font-size: 22px;
-}
-
-nav ul {
-  list-style: none;
-  display: flex;
-  gap: 20px;
-  margin: 0;
-  padding: 0;
-}
-
-nav ul li a {
-  color: white;
-  text-decoration: none;
-  font-weight: 500;
-  transition: opacity 0.3s;
-}
-
-nav ul li a:hover {
-  opacity: 0.8;
-}
-
 .container {
   max-width: 1000px;
   margin: 40px auto;
@@ -201,16 +157,7 @@ footer {
 </head>
 <body>
 
-<nav>
-  <div class="logo">
-    <img src="../assets/img/logo.png" alt="PAWthway Logo">
-    <span><?= htmlspecialchars($clinic_name); ?> Dashboard</span>
-  </div>
-  <ul>
-    <li><a href="clinic_appointments.php">Appointments</a></li>
-    <li><a href="clinic_logout.php">Logout</a></li>
-  </ul>
-</nav>
+<?php include('../config/navbar.php'); ?>
 
 <div class="container">
   <h2>Pending & Cancelled Appointments</h2>

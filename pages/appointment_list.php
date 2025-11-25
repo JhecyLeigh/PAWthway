@@ -58,50 +58,6 @@ body {
   flex-direction: column;
 }
 
-nav {
-  background: #4CAF50;
-  color: white;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 15px 40px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-}
-
-nav .logo {
-  display: flex;
-  align-items: center;
-}
-
-nav .logo img {
-  width: 50px;
-  margin-right: 10px;
-}
-
-nav .logo span {
-  font-weight: 600;
-  font-size: 22px;
-}
-
-nav ul {
-  list-style: none;
-  display: flex;
-  gap: 20px;
-  margin: 0;
-  padding: 0;
-}
-
-nav ul li a {
-  color: white;
-  text-decoration: none;
-  font-weight: 500;
-  transition: opacity 0.3s;
-}
-
-nav ul li a:hover {
-  opacity: 0.8;
-}
-
 .container {
   max-width: 950px;
   margin: 50px auto;
@@ -193,21 +149,7 @@ footer {
 </head>
 <body>
 
-<nav>
-  <div class="logo">
-    <img src="../assets/img/logo.png" alt="PAWthway Logo">
-    <span>PAWthway</span>
-  </div>
-  <ul>
-    <li><a href="dashboard.php">Home</a></li>
-    <li><a href="clinics.php">Clinics</a></li>
-    <li><a href="appointment_list.php">My Appointments</a></li>
-    <li><a href="notifications.php">Notifications</a></li>
-    <li><a href="profile.php">Profile</a></li>
-    <li><a href="logout.php">Logout</a></li>
-    <li><a href="reviews.php">My Reviews</a></li>
-  </ul>
-</nav>
+<?php include('../config/navbar.php'); ?>
 
 <div class="container">
   <h2>My Appointments</h2>

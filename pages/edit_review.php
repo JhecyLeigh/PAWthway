@@ -68,9 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_review'])) {
 </head>
 <body>
 
-<nav>
-  <!-- Same navigation as reviews.php -->
-</nav>
+<?php include('../config/navbar.php'); ?>
 
 <div class="container">
     <h2>Edit Review for <?php echo htmlspecialchars($review['clinic_name']); ?></h2>

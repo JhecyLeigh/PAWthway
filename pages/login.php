@@ -5,41 +5,44 @@ include('../config/db.php');
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
   $email = trim($_POST['email'] ?? '');
   $password = trim($_POST['password'] ?? '');
-  $role = ($_POST['role'] ?? 'user') === 'clinic' ? 'clinic' : 'user';
 
   if ($email === '' || $password === '') {
     $error = "Please enter both email and password.";
   } else {
-    if ($role === 'user') {
-      $stmt = $conn->prepare("SELECT id, username, email, password FROM users WHERE email = ? LIMIT 1");
-      $stmt->bind_param('s', $email);
-      $stmt->execute();
-      $res = $stmt->get_result();
-      $user = $res->fetch_assoc();
-      $stmt->close();
+    // First, try to find user in users table
+    $stmt = $conn->prepare("SELECT id, username, email, password FROM users WHERE email = ? LIMIT 1");
+    $stmt->bind_param('s', $email);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $user = $res->fetch_assoc();
+    $stmt->close();
 
-      if ($user && $password === $user['password']) {
-        $_SESSION['user'] = ['id'=>$user['id'],'username'=>$user['username'],'email'=>$user['email']];
-        header("Location: dashboard.php");
-        exit;
-      } else $error = "Invalid user email or password.";
-
-    } else {
-      $stmt = $conn->prepare("SELECT id, clinic_id, email, password, name FROM clinic_users WHERE email = ? LIMIT 1");
-      $stmt->bind_param('s', $email);
-      $stmt->execute();
-      $res = $stmt->get_result();
-      $clinic = $res->fetch_assoc();
-      $stmt->close();
-
-      if ($clinic && $password === $clinic['password']) {
-        $_SESSION['clinic_user_id'] = $clinic['id'];
-        $_SESSION['clinic_id'] = $clinic['clinic_id'];
-        $_SESSION['clinic_name'] = $clinic['name'];
-        header("Location: clinic_dashboard.php");
-        exit;
-      } else $error = "Invalid clinic email or password.";
+    if ($user && $password === $user['password']) {
+      // User found in users table (client)
+      $_SESSION['user'] = ['id'=>$user['id'],'username'=>$user['username'],'email'=>$user['email']];
+      header("Location: dashboard.php");
+      exit;
     }
+
+    // If not found in users table, try clinic_users table
+    $stmt = $conn->prepare("SELECT id, clinic_id, email, password, name FROM clinic_users WHERE email = ? LIMIT 1");
+    $stmt->bind_param('s', $email);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $clinic = $res->fetch_assoc();
+    $stmt->close();
+
+    if ($clinic && $password === $clinic['password']) {
+      // User found in clinic_users table (clinic staff)
+      $_SESSION['clinic_user_id'] = $clinic['id'];
+      $_SESSION['clinic_id'] = $clinic['clinic_id'];
+      $_SESSION['clinic_name'] = $clinic['name'];
+      header("Location: clinic_appointments.php");
+      exit;
+    }
+
+    // If not found in either table, show error
+    $error = "Invalid email or password.";
   }
 }
 ?>
@@ -137,11 +140,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
       <h3>LOGIN</h3>
 
       <form method="POST" novalidate>
-        <div class="role-row">
-          <label><input type="radio" name="role" value="user" <?= (!isset($_POST['role']) || $_POST['role'] !== 'clinic') ? 'checked' : '' ?>> Client</label>
-          <label><input type="radio" name="role" value="clinic" <?= (isset($_POST['role']) && $_POST['role'] === 'clinic') ? 'checked' : '' ?>> Clinic</label>
-        </div>
-
         <input type="email" name="email" placeholder="Email" required value="<?= htmlspecialchars($_POST['email'] ?? '') ?>">
         <input type="password" name="password" placeholder="Password" required>
 
