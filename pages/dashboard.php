@@ -9,6 +9,7 @@ $user = $_SESSION['user'];
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<link rel="icon" type="image/png" href="../assets/img/logo.png">
   <meta charset="UTF-8">
   <title>Dashboard - PAWthway</title>
   <link rel="stylesheet" href="../assets/css/style.css">
@@ -142,11 +143,13 @@ $user = $_SESSION['user'];
       <span>PAWthway</span>
     </div>
     <ul>
-      <li><a href="dashboard.php">Home</a></li>
-      <li><a href="clinics.php">Clinics</a></li>
-      <li><a href="appointment_list.php">My Appointments</a></li>
-      <li><a href="profile.php">Profile</a></li>
-      <li><a href="logout.php">Logout</a></li>
+     <li><a href="dashboard.php">Home</a></li>
+    <li><a href="clinics.php">Clinics</a></li>
+    <li><a href="appointment_list.php">My Appointments</a></li>
+    <li><a href="notifications.php">Notifications</a></li>
+    <li><a href="profile.php">Profile</a></li>
+    <li><a href="logout.php">Logout</a></li>
+    <li><a href="reviews.php">My Reviews</a></li>
     </ul>
   </nav>
 
