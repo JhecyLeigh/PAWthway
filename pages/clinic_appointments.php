@@ -1,318 +1,303 @@
 <?php
-// pages/clinic_appointments.php
 session_start();
-require_once __DIR__ . '/../config/db.php'; // expects $conn (mysqli)
+include('../config/db.php');
 
-if (!isset($_SESSION['clinic_id'])) {
-    header('Location: clinic_login.php');
+if (!isset($_SESSION['clinic_name'])) {
+    header("Location: clinic_login.php");
     exit;
 }
-$clinic_id = (int)$_SESSION['clinic_id'];
-$clinic_name_display = htmlspecialchars($_SESSION['clinic_name'] ?? '');
 
-// ---- POST: handle status update with strict server-side enforcement ----
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
-    $appointment_id = isset($_POST['appointment_id']) ? (int)$_POST['appointment_id'] : 0;
-    $new_status = isset($_POST['status']) ? trim($_POST['status']) : '';
+$clinic_name = $_SESSION['clinic_name'];
 
-    // Allowed target statuses further checked below
-    $allowed_targets = ['Confirmed', 'Completed', 'Cancelled'];
+if (isset($_POST['update_status'])) {
+    $appointment_id = intval($_POST['appointment_id']);
+    $new_status = $_POST['status'];
 
-    if ($appointment_id > 0 && in_array($new_status, $allowed_targets, true)) {
-        // fetch current status and clinic ownership to enforce transitions
-        $check = $conn->prepare("SELECT status FROM appointments WHERE id = ? AND clinic_id = ?");
-        if ($check) {
-            $check->bind_param('ii', $appointment_id, $clinic_id);
-            $check->execute();
-            $result = $check->get_result();
-            $row = $result ? $result->fetch_assoc() : null;
-            $check->close();
+    $check = $conn->prepare("SELECT status FROM appointments WHERE id = ? AND clinic_name = ?");
+    $check->bind_param("is", $appointment_id, $clinic_name);
+    $check->execute();
+    $result = $check->get_result();
+    $row = $result->fetch_assoc();
+    $check->close();
 
-            if ($row) {
-                $current_status = $row['status'];
-                $allow = false;
+    if ($row) {
+        if ($row['status'] == 'Pending' || $row['status'] == 'Confirmed') {
 
-                // Allowed transitions:
-                // Pending -> Confirmed
-                // Confirmed -> Completed
-                // Pending -> Cancelled
-                if ($current_status === 'Pending' && $new_status === 'Confirmed') $allow = true;
-                if ($current_status === 'Confirmed' && $new_status === 'Completed') $allow = true;
-                if ($current_status === 'Pending' && $new_status === 'Cancelled') $allow = true;
-
-                if ($allow) {
-                    $upd = $conn->prepare("UPDATE appointments SET status = ? WHERE id = ? AND clinic_id = ?");
-                    if ($upd) {
-                        $upd->bind_param('sii', $new_status, $appointment_id, $clinic_id);
-                        $upd->execute();
-                        if ($upd->affected_rows > 0) {
-                            $_SESSION['flash'] = "Appointment status updated.";
-                        } else {
-                            $_SESSION['flash'] = "No change made or update failed.";
-                        }
-                        $upd->close();
-                    } else {
-                        error_log("DB prepare failed (update): " . $conn->error);
-                        $_SESSION['flash'] = "Database error (update).";
-                    }
-                } else {
-                    error_log("Blocked invalid transition for appointment {$appointment_id}: {$current_status} -> {$new_status}");
-                    $_SESSION['flash'] = "Invalid status transition attempted.";
-                }
+            if ($new_status == 'Confirmed') {
+                $final_status = 'Completed';
             } else {
-                error_log("Appointment not found or not owned by clinic: id={$appointment_id}, clinic={$clinic_id}");
-                $_SESSION['flash'] = "Appointment not found or not owned by this clinic.";
+                $final_status = $new_status;
             }
+
+            $stmt = $conn->prepare("UPDATE appointments SET status = ? WHERE id = ? AND clinic_name = ?");
+            $stmt->bind_param("sis", $final_status, $appointment_id, $clinic_name);
+            $stmt->execute();
+            $stmt->close();
+
+            echo "<script>alert('Appointment status updated successfully!'); window.location='clinic_appointments.php';</script>";
+            exit;
         } else {
-            error_log("DB prepare failed (select check): " . $conn->error);
-            $_SESSION['flash'] = "Database error (check).";
+            echo "<script>alert('This appointment can no longer be edited.'); window.location='clinic_appointments.php';</script>";
+            exit;
         }
     } else {
-        $_SESSION['flash'] = "Invalid input.";
+        echo "<script>alert('Appointment not found.'); window.location='clinic_appointments.php';</script>";
+        exit;
     }
-
-    // Redirect back (PRG) so flash shows and prevents double submit
-    header('Location: clinic_appointments.php');
-    exit;
 }
 
-// Fetch appointments for this clinic
-$sql = "
-  SELECT a.id, a.pet_name, a.pet_type, a.service, a.appointment_date, a.status,
-         u.username AS owner_name, u.email AS owner_email
-  FROM appointments a
-  LEFT JOIN users u ON a.user_id = u.id
-  WHERE a.clinic_id = ?
-  ORDER BY a.appointment_date DESC
-";
-$stmt = $conn->prepare($sql);
-if (!$stmt) {
-    die("DB prepare error: " . htmlspecialchars($conn->error));
-}
-$stmt->bind_param('i', $clinic_id);
-$stmt->execute();
-$res = $stmt->get_result();
-$appointments = $res->fetch_all(MYSQLI_ASSOC);
-$stmt->close();
+$pending_sql = "SELECT * FROM appointments WHERE clinic_name = ? AND (status = 'Pending' OR status = 'Cancelled') ORDER BY appointment_date DESC";
+$completed_sql = "SELECT * FROM appointments WHERE clinic_name = ? AND status = 'Completed' ORDER BY appointment_date DESC";
 
-// fetch and clear flash (if any)
-$flash = $_SESSION['flash'] ?? null;
-if ($flash) unset($_SESSION['flash']);
+$stmt1 = $conn->prepare($pending_sql);
+$stmt1->bind_param("s", $clinic_name);
+$stmt1->execute();
+$pending_result = $stmt1->get_result();
+$pending_appointments = $pending_result->fetch_all(MYSQLI_ASSOC);
+$stmt1->close();
+
+$stmt2 = $conn->prepare($completed_sql);
+$stmt2->bind_param("s", $clinic_name);
+$stmt2->execute();
+$completed_result = $stmt2->get_result();
+$completed_appointments = $completed_result->fetch_all(MYSQLI_ASSOC);
+$stmt2->close();
+
+$conn->close();
 ?>
-<!doctype html>
+
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>Appointments — <?= $clinic_name_display ?></title>
-  <link rel="stylesheet" href="/pawthway/assets/css/style.css">
-  <link rel="stylesheet" href="/pawthway/assets/css/styles.css">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <style>
-    .appointments-card{max-width:1100px;margin:30px auto;padding:22px;border-radius:12px;background:#fff;box-shadow:0 8px 24px rgba(0,0,0,.04)}
-    table.app-table{width:100%;border-collapse:collapse}
-    table.app-table th{background:#cfead2;color:#1b6c2b;padding:12px;text-align:left;border-bottom:1px solid #e9f2ea}
-    table.app-table td{padding:12px;border-bottom:1px solid #f1f5f1;vertical-align:middle}
-    .status-chip{padding:6px 10px;border-radius:20px;font-weight:600;color:#fff;display:inline-block;min-width:80px;text-align:center}
-    .st-pending{background:#f39c12}
-    .st-confirmed{background:#2ecc71}
-    .st-completed{background:#3498db}
-    .st-cancelled{background:#e74c3c}
-    .status-select{padding:6px 10px;border-radius:6px;border:1px solid #c8e6c9;background:#fff;font-weight:600;min-width:140px}
-    .status-select:disabled{background:#f4f4f4;color:#777;cursor:not-allowed}
-    .status-form{display:inline-block;margin:0;padding:0}
-    /* flash */
-    .flash { max-width:1100px;margin:10px auto;padding:12px;border-radius:8px;background:#e6ffed;color:#114c27;border:1px solid #c6f1d1 }
-    /* confirmation modal */
-    .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:none; align-items:center; justify-content:center; z-index:9999; }
-    .modal { background:#fff; padding:18px; border-radius:10px; width:90%; max-width:420px; box-shadow:0 8px 30px rgba(0,0,0,0.2); text-align:left; }
-    .modal h3 { margin:0 0 8px; color:#2e7d32; }
-    .modal p { margin:8px 0 14px; color:#333; }
-    .modal .controls { text-align:right; gap:8px; display:flex; justify-content:flex-end; }
-    .btn { padding:8px 12px; border-radius:8px; border:none; cursor:pointer; font-weight:600; }
-    .btn-confirm { background:#4CAF50; color:#fff; }
-    .btn-danger { background:#e64b47; color:#fff; }
-    .btn-secondary { background:#f4f4f4; color:#333; border:1px solid #ddd; }
-    @media screen and (max-width:700px){ .appointments-card{padding:14px} .status-select{min-width:100px} }
-  </style>
+  <link rel="icon" type="image/png" href="../assets/img/logo.png">
+<meta charset="UTF-8">
+<title>Clinic Dashboard - PAWthway</title>
+<link rel="stylesheet" href="../assets/css/style.css">
+<style>
+body {
+  margin: 0;
+  font-family: 'Poppins', sans-serif;
+  background: linear-gradient(180deg, #e8f5e9 0%, #fff 100%);
+  color: #2e7d32;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+nav {
+  background: #4CAF50;
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 40px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+nav .logo {
+  display: flex;
+  align-items: center;
+}
+
+nav .logo img {
+  width: 50px;
+  margin-right: 10px;
+}
+
+nav .logo span {
+  font-weight: 600;
+  font-size: 22px;
+}
+
+nav ul {
+  list-style: none;
+  display: flex;
+  gap: 20px;
+  margin: 0;
+  padding: 0;
+}
+
+nav ul li a {
+  color: white;
+  text-decoration: none;
+  font-weight: 500;
+  transition: opacity 0.3s;
+}
+
+nav ul li a:hover {
+  opacity: 0.8;
+}
+
+.container {
+  max-width: 1000px;
+  margin: 40px auto;
+  background: white;
+  padding: 30px;
+  border-radius: 20px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+}
+
+.container h2 {
+  color: #388e3c;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+  margin-bottom: 40px;
+}
+
+th, td {
+  padding: 12px 15px;
+  border-bottom: 1px solid #ddd;
+  text-align: left;
+}
+
+th {
+  background: #a5d6a7;
+  color: #2e7d32;
+}
+
+.status {
+  font-weight: bold;
+  text-transform: capitalize;
+}
+
+.status.Pending { color: #f57f17; }
+.status.Completed { color: #2e7d32; }
+.status.Cancelled { color: #d32f2f; }
+
+form select, form button {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+}
+
+form button {
+  background: #4CAF50;
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+form button:hover {
+  background: #43a047;
+}
+
+footer {
+  text-align: center;
+  padding: 15px;
+  background: #e8f5e9;
+  color: #388e3c;
+  font-size: 14px;
+  margin-top: auto;
+}
+</style>
 </head>
 <body>
-  <!-- header -->
-  <header>
-    <nav>
-      <div class="logo">
-        <a href="clinic_dashboard.php" style="display:flex;align-items:center;color:white;text-decoration:none">
-          <img src="/pawthway/assets/img/logo.png" alt="PAWthway Logo" style="width:46px;margin-right:10px">
-          <span style="font-weight:600;font-size:20px;color:white">PAWthway</span>
-        </a>
-      </div>
-      <ul>
-        <li><a href="clinic_dashboard.php">Home</a></li>
-        <li><a href="clinic_logout.php">Logout</a></li>
-      </ul>
-    </nav>
-  </header>
 
-  <?php if ($flash): ?>
-    <div class="flash"><?= htmlspecialchars($flash) ?></div>
+<nav>
+  <div class="logo">
+    <img src="../assets/img/logo.png" alt="PAWthway Logo">
+    <span><?= htmlspecialchars($clinic_name); ?> Dashboard</span>
+  </div>
+  <ul>
+    <li><a href="clinic_appointments.php">Appointments</a></li>
+    <li><a href="clinic_logout.php">Logout</a></li>
+  </ul>
+</nav>
+
+<div class="container">
+  <h2>Pending & Cancelled Appointments</h2>
+
+  <?php if (count($pending_appointments) > 0): ?>
+    <table>
+      <thead>
+        <tr>
+          <th>Pet Name</th>
+          <th>Type</th>
+          <th>Age</th>
+          <th>Gender</th>
+          <th>Service</th>
+          <th>Date & Time</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($pending_appointments as $app): ?>
+        <tr>
+          <td><?= htmlspecialchars($app['pet_name']); ?></td>
+          <td><?= htmlspecialchars($app['pet_type']); ?></td>
+          <td><?= htmlspecialchars($app['pet_age']); ?></td>
+          <td><?= htmlspecialchars($app['pet_gender']); ?></td>
+          <td><?= htmlspecialchars($app['service']); ?></td>
+          <td><?= date("M d, Y h:i A", strtotime($app['appointment_date'])); ?></td>
+          <td class="status <?= htmlspecialchars($app['status']); ?>"><?= htmlspecialchars($app['status']); ?></td>
+          <td>
+            <?php if ($app['status'] == 'Pending'): ?>
+              <form method="POST" style="display:flex; gap:5px;">
+                <input type="hidden" name="appointment_id" value="<?= $app['id']; ?>">
+                <select name="status">
+                  <option value="Pending" <?= $app['status']=='Pending'?'selected':''; ?>>Pending</option>
+                  <option value="Confirmed">Confirm (Mark as Completed)</option>
+                  <option value="Cancelled">Cancelled</option>
+                </select>
+                <button type="submit" name="update_status">Save</button>
+              </form>
+            <?php else: ?>
+              <em>No actions available</em>
+            <?php endif; ?>
+          </td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  <?php else: ?>
+    <p style="text-align:center;">No pending or cancelled appointments.</p>
   <?php endif; ?>
 
-  <main>
-    <div class="appointments-card content">
-      <h2>Appointments for <?= $clinic_name_display ?></h2>
-      <table class="app-table">
-        <thead>
-          <tr><th>Pet</th><th>Type</th><th>Service</th><th>Date & Time</th><th>Status</th><th>Action</th></tr>
-        </thead>
-        <tbody>
-          <?php if (empty($appointments)): ?>
-            <tr><td colspan="6" style="text-align:center;padding:30px;color:#6b8a6b">No appointments found.</td></tr>
-          <?php else: foreach ($appointments as $a):
-            $cls = 'st-pending';
-            if ($a['status'] === 'Confirmed') $cls = 'st-confirmed';
-            if ($a['status'] === 'Completed') $cls = 'st-completed';
-            if ($a['status'] === 'Cancelled') $cls = 'st-cancelled';
+  <h2>Completed Appointments</h2>
+  <?php if (count($completed_appointments) > 0): ?>
+    <table>
+      <thead>
+        <tr>
+          <th>Pet Name</th>
+          <th>Type</th>
+          <th>Age</th>
+          <th>Gender</th>
+          <th>Service</th>
+          <th>Date & Time</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($completed_appointments as $app): ?>
+        <tr>
+          <td><?= htmlspecialchars($app['pet_name']); ?></td>
+          <td><?= htmlspecialchars($app['pet_type']); ?></td>
+          <td><?= htmlspecialchars($app['pet_age']); ?></td>
+          <td><?= htmlspecialchars($app['pet_gender']); ?></td>
+          <td><?= htmlspecialchars($app['service']); ?></td>
+          <td><?= date("M d, Y h:i A", strtotime($app['appointment_date'])); ?></td>
+          <td class="status <?= htmlspecialchars($app['status']); ?>"><?= htmlspecialchars($app['status']); ?></td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  <?php else: ?>
+    <p style="text-align:center;">No completed appointments yet.</p>
+  <?php endif; ?>
+</div>
 
-            // UI options per current status:
-            $current = $a['status'];
-            $disabled = false;
-            $options = [];
-            if ($current === 'Pending') {
-                $options[] = ['value'=>'Pending','label'=>'Pending','selected'=>true];
-                $options[] = ['value'=>'Confirmed','label'=>'Confirm','selected'=>false];
-                $options[] = ['value'=>'Cancelled','label'=>'Cancel','selected'=>false];
-            } elseif ($current === 'Confirmed') {
-                $options[] = ['value'=>'Confirmed','label'=>'Confirmed','selected'=>true];
-                $options[] = ['value'=>'Completed','label'=>'Complete','selected'=>false];
-            } else {
-                $options[] = ['value'=>$current,'label'=>$current,'selected'=>true];
-                $disabled = true;
-            }
-          ?>
-            <tr id="row-<?= (int)$a['id'] ?>">
-              <td style="min-width:180px;"><?= htmlspecialchars($a['pet_name']) ?><br/><small style="color:#6b8a6b"><?= htmlspecialchars($a['owner_name'] ?? '') ?></small></td>
-              <td style="width:90px;"><?= htmlspecialchars($a['pet_type']) ?></td>
-              <td><?= nl2br(htmlspecialchars($a['service'])) ?></td>
-              <td style="white-space:nowrap;"><?= htmlspecialchars($a['appointment_date']) ?></td>
-              <td style="width:130px;"><span class="status-chip <?= $cls ?>"><?= htmlspecialchars($a['status']) ?></span></td>
-              <td style="width:180px;">
-                <form method="POST" class="status-form">
-                  <input type="hidden" name="update_status" value="1">
-                  <input type="hidden" name="appointment_id" value="<?= (int)$a['id'] ?>">
-                  <select name="status"
-                          class="status-select"
-                          data-current="<?= htmlspecialchars($current) ?>"
-                          <?= $disabled ? 'disabled' : '' ?>
-                          onchange="return handleStatusSelectChange(event)">
-                    <?php foreach ($options as $opt): ?>
-                      <option value="<?= htmlspecialchars($opt['value']) ?>" <?= $opt['selected'] ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($opt['label']) ?>
-                      </option>
-                    <?php endforeach; ?>
-                  </select>
-                </form>
-              </td>
-            </tr>
-          <?php endforeach; endif; ?>
-        </tbody>
-      </table>
-    </div>
-  </main>
-
-  <footer>
-    <div style="max-width:1100px;margin:0 auto;padding:12px 20px;">
-      &copy; <?= date('Y') ?> PAWthway. All Rights Reserved.
-    </div>
-  </footer>
-
-  <!-- Modal markup (hidden by default) -->
-  <div id="modal-backdrop" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
-    <div class="modal" role="document">
-      <h3 id="modal-title">Confirm action</h3>
-      <p id="modal-message">Are you sure?</p>
-      <div class="controls">
-        <button id="modal-cancel" class="btn btn-secondary">Cancel</button>
-        <button id="modal-confirm" class="btn btn-confirm">Yes, proceed</button>
-      </div>
-    </div>
-  </div>
-
-  <script>
-  // simple modal + handler
-  (function(){
-    var backdrop = document.getElementById('modal-backdrop');
-    var titleEl = document.getElementById('modal-title');
-    var msgEl = document.getElementById('modal-message');
-    var btnConfirm = document.getElementById('modal-confirm');
-    var btnCancel = document.getElementById('modal-cancel');
-
-    var pendingForm = null;
-    var pendingSelect = null;
-    var pendingNewValue = null;
-    var pendingOldValue = null;
-
-    function showModal(message, form, select, newVal, oldVal){
-      pendingForm = form;
-      pendingSelect = select;
-      pendingNewValue = newVal;
-      pendingOldValue = oldVal;
-
-      titleEl.textContent = 'Please confirm';
-      msgEl.textContent = message;
-      backdrop.style.display = 'flex';
-      backdrop.setAttribute('aria-hidden','false');
-      btnConfirm.focus();
-    }
-
-    function hideModal(){
-      backdrop.style.display = 'none';
-      backdrop.setAttribute('aria-hidden','true');
-      pendingForm = null;
-      pendingSelect = null;
-      pendingNewValue = null;
-      pendingOldValue = null;
-    }
-
-    btnCancel.addEventListener('click', function(e){
-      e.preventDefault();
-      if (pendingSelect) pendingSelect.value = pendingOldValue;
-      hideModal();
-    });
-
-    btnConfirm.addEventListener('click', function(e){
-      e.preventDefault();
-      if (!pendingForm) { hideModal(); return; }
-      pendingForm.submit();
-      hideModal();
-    });
-
-    window.confirmActionModal = function(form, selectEl){
-      var newVal = selectEl.value;
-      var oldVal = selectEl.getAttribute('data-current') || (selectEl.querySelector('option[selected]') && selectEl.querySelector('option[selected]').value) || null;
-      if (newVal === oldVal) return;
-
-      var message = '';
-      if (newVal === 'Confirmed') {
-        message = 'Mark this appointment as CONFIRMED?';
-      } else if (newVal === 'Completed') {
-        message = 'Mark this appointment as COMPLETED?';
-      } else if (newVal === 'Cancelled') {
-        message = 'Cancel this appointment?';
-      } else {
-        form.submit();
-        return;
-      }
-
-      showModal(message, form, selectEl, newVal, oldVal);
-    };
-  })();
-
-  function handleStatusSelectChange(ev){
-    var select = ev.target;
-    var form = select.closest('form');
-    window.confirmActionModal(form, select);
-    return false;
-  }
-  </script>
+<footer>
+&copy; <?= date("Y"); ?> PAWthway. Clinic Portal
+</footer>
 
 </body>
 </html>

@@ -57,6 +57,7 @@ $clinicImages = [
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="icon" type="image/png" href="../assets/img/logo.png">
 <meta charset="UTF-8">
 <title>Clinics - PAWthway</title>
 <link rel="stylesheet" href="../assets/css/style.css">
@@ -108,6 +109,7 @@ footer { text-align:center; padding:15px; background:#e8f5e9; color:#388e3c; fon
     <li><a href="appointment_list.php">My Appointments</a></li>
     <li><a href="profile.php">Profile</a></li>
     <li><a href="logout.php">Logout</a></li>
+    <li><a href="reviews.php">My Reviews</a></li>
   </ul>
 </nav>
 
